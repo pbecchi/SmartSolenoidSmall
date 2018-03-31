@@ -64,9 +64,10 @@ struct Waterings {
 public:
 	ulong start;
 	long dur;
+	byte valv;
 };
 byte schedN = 0;
-Waterings timesched[10];
+Waterings timesched[MAX_NUMBER_SCHEDULED];
 
 extern char html[];
 static bool curr_cloud_access_en = false;
@@ -98,12 +99,12 @@ void server_send_html(String html) {
 
 void server_send_result(byte code, const char* item = NULL) {
 	
-	strcpy( html,  "{\"result\":");
+	strcpy_P( html,PSTR(  "{\"result\":"));
 	char cc[4];
 	strcat(html, itoa(code,cc,10));
-	strcat(html, ",\"item\":\"");
+	strcat_P(html,PSTR( ",\"item\":\""));
 	if (item) strcat(html, item);
-	strcat(html, "\"");
+	strcat_P(html,PSTR( "\""));
 	strcat(html, "}");
 	server.send();
 }
@@ -116,9 +117,25 @@ bool get_value_by_key(const char* key, long& val) {
 		return false;
 	}
 }
-
+bool get_value_by_key_P(const PROGMEM char* key, long& val) {
+	if (server.hasArg_P(key)) {
+		val = atol(server.arg_P(key));
+		DEBUG_PRINTLN(val);
+		return true;
+	} else {
+		return false;
+	}
+}
 bool get_value_by_key(const char* key, String& val) {
 	if (server.hasArg(key)) {
+		val = server.arg(key);
+		return true;
+	} else {
+		return false;
+	}
+}
+bool get_value_by_key_P(const PROGMEM char* key, String& val) {
+	if (server.hasArg_P(key)) {
 		val = server.arg(key);
 		return true;
 	} else {
@@ -133,66 +150,72 @@ bool get_value_by_key(const char* key, char* val) {
 		return false;
 	}
 }
-
+bool get_value_by_key_P(const PROGMEM char* key, char* val) {
+	if (server.hasArg_P(key)) {
+		strcpy(val, server.arg_P(key));
+		return true;
+	} else {
+		return false;
+	}
+}
 void append_key_value(char* html, const char* key, const ulong value) {
 	char str[10];
+	if (strlen(html) > HTML_LEN - 10) return;
 	strcat(html,"\"");
 	strcat(html, key);
-	strcat(html, "\":");
+	strcat_P(html,PSTR("\":"));
 	strcat(html,ultoa( value,str,10));
 	strcat(html, ",");
 //	sprintf("\"%c\":&d,",key,value)
 	DEBUG_PRINT(html); DEBUG_PRINTLN(value);
 }
-/*
-void append_key_value(String& html, const char* key, const ulong value) {
-	html += "\"";
-	html += key;
-	html += "\":";
-	html += value;
-	html += ",";
+void append_key_value_P(char* html, const PROGMEM char* key, const ulong value) {
+	char str[14];
+	if (strlen(html) > HTML_LEN - 10) return;
+	strcat_P(html,PSTR("\""));
+	strcat_P(html, key);
+	strcat_P(html,PSTR("\":"));
+	strcat(html, ultoa(value, str, 10));
+	strcat(html, ",");
+	//	sprintf("\"%c\":&d,",key,value)
 	DEBUG_PRINT(html); DEBUG_PRINTLN(value);
 }
-void append_key_value(String& html, const char* key, const int16_t value) {
-	html += "\"";
-	html += key;
-	html += "\":";
-	html += value;
-	html += ",";
-}
-void append_key_value(String& html, const char* key, const String& value) {
-	html += "\"";
-	html += key;
-	html += "\":\"";
-	html += value;
-	html += "\",";
-	DEBUG_PRINTLN(html);
-}
-void append_key_value(String& html, const char* key, const char* value) {
-
-html += "\"";
-html += key;
-html += "\":\"";
-html += value;
-html += "\",";
-DEBUG_PRINTLN(html);
-}
-*/
 void append_key_value(char* html, const char* key, const int16_t value) {
-	append_key_value(html, key,(unsigned long) value);
-}
-void append_key_value(char* html, const char* key, const String& value) {
-	strcat(html, "\"");
+	char str[10];
+	if (strlen(html) > HTML_LEN - 10) return;
+	strcat_P(html,PSTR("\""));
 	strcat(html, key);
-	strcat(html, "\":\"");
+	strcat_P(html,PSTR("\":"));
+	strcat(html, itoa(value, str, 10));
+	strcat(html, ",");
+	//	sprintf("\"%c\":&d,",key,value)
+	DEBUG_PRINT(html); DEBUG_PRINTLN(value);
+}
+void append_key_value_P(char* html, const PROGMEM char* key, const int16_t value) {
+	char str[10];
+	if (strlen(html) > HTML_LEN - 10) return;
+	strcat_P(html,PSTR("\""));
+	strcat_P(html, key);
+	strcat_P(html,PSTR("\":"));
+	strcat(html, itoa(value, str, 10));
+	strcat(html, ",");
+	//	sprintf("\"%c\":&d,",key,value)
+	DEBUG_PRINT(html); DEBUG_PRINTLN(value);
+}
+
+void append_key_value(char* html, const char* key,  String& value) {
+	if (strlen(html) > HTML_LEN - 10) return;
+	strcat_P(html,PSTR("\""));
+	strcat(html, key);
+	strcat_P(html, PSTR("\":\""));
 	strcat(html, value.c_str());
 	strcat(html, "\",");
 	DEBUG_PRINTLN(html);
 }
 
 void append_key_value(char* html, const char* key, const char* value) {
-
-	strcat(html, "\"");
+	if (strlen(html) > HTML_LEN - 10) return;
+	strcat_P(html,PSTR("\""));
 	strcat(html, key);
 	strcat(html, "\":\"");
 	strcat(html, value);
@@ -252,7 +275,7 @@ bool verify_dkey() {
 int16_t get_pid() {
 	// if(curr_mode == OSB_MOD_AP) return -2;
 	long v;
-	if (get_value_by_key("pid", v)) {
+	if (get_value_by_key_P(PSTR("pid"), v)) {
 		return v;
 	} else {
 		server_send_result(HTML_DATA_MISSING, "pid");
@@ -278,20 +301,20 @@ void on_sta_controller() {
 	// if(curr_mode == OSB_MOD_AP) return;
 	//char html[200]= "{";
 	strcpy(html, "{");
-	append_key_value(html, "fwv", (int16_t)osb.options[OPTION_FWV].ival);
+	append_key_value_P(html, PSTR("fwv"), (int16_t)osb.options[OPTION_FWV].ival);
 //	append_key_value(html, "sot", (int16_t)osb.options[OPTION_SOT].ival);
-	append_key_value(html, "utct", curr_utc_time);
-	append_key_value(html, "pid", (int16_t)pd.curr_prog_index);
-	append_key_value(html, "tid", (int16_t)pd.curr_task_index);
-	append_key_value(html, "np", (int16_t)pd.nprogs);
-	append_key_value(html, "nt", (int16_t)pd.scheduled_ntasks);
-	append_key_value(html, "mnp", (int16_t)MAX_NUM_PROGRAMS);
-	append_key_value(html, "prem", pd.curr_prog_remaining_time);
-	append_key_value(html, "trem", pd.curr_task_remaining_time);
-	append_key_value(html, "zbits", (int16_t)osb.curr_zbits);
-	append_key_value(html, "name", osb.options[OPTION_NAME].sval);
-//	append_key_value(html, "mac", get_mac());
-	append_key_value(html, "sleep", (ulong)sleepTime);
+	append_key_value_P(html, PSTR("utct"), curr_utc_time);
+	append_key_value_P(html,PSTR( "pid"), (int16_t)pd.curr_prog_index);
+	append_key_value_P(html,PSTR( "tid"), (int16_t)pd.curr_task_index);
+	append_key_value_P(html,PSTR( "np"), (int16_t)pd.nprogs);
+	append_key_value_P(html,PSTR( "nt"), (int16_t)pd.scheduled_ntasks);
+	append_key_value_P(html,PSTR( "mnp"), (int16_t)MAX_NUM_PROGRAMS);
+	append_key_value_P(html, PSTR("prem"), pd.curr_prog_remaining_time);
+	append_key_value_P(html,PSTR( "trem"), pd.curr_task_remaining_time);
+	append_key_value_P(html, PSTR("zbits"), (int16_t)osb.curr_zbits);
+//	append_key_value(html, "name", osb.options[OPTION_NAME].sval);
+	append_key_value_P(html,PSTR( "bat"),int (analogRead(A7)*31)/512);
+	append_key_value_P(html,PSTR( "raiDe"), (ulong)osb.options[OPTION_RAIN_D].ival);
 	//  append_key_value(html, "rssi", (int16_t)WiFi.RSSI());
 	//String htm =html+ get_zone_names_json();
 	//htm += "}";
@@ -355,7 +378,7 @@ void on_sta_change_controller() {
 
 		DEBUG_PRINTLN(F("set time"));
 		long ntime;
-		get_value_by_key("t", ntime);
+		get_value_by_key_P(PSTR("t"), ntime);
 		DEBUG_PRINTLN(ntime);
 		//	if (sleepadj != 0) sleepadj = -(time - ntime) * 100000L / Tot_sleep_count ;else
 		sleepadj = 1;
@@ -390,7 +413,7 @@ void drem_to_absolute(byte days[2]) {
 	byte inv = days[1];
 	days[0] = (byte)(((osb.curr_loc_time() / SECS_PER_DAY) + rem_rel) % inv);
 }
-
+/*
 long parse_listdata(const String& s, uint16_t& pos) {
 	uint16_t p;
 	char tmp[13];
@@ -410,6 +433,7 @@ long parse_listdata(const String& s, uint16_t& pos) {
 	pos = p + 1;
 	return atol(tmp);
 }
+*/
 #ifdef OS217
 uint32_t sh_parse_listdata(char **p) {
 	char tmp_buffer[50];
@@ -468,15 +492,19 @@ byte OS_Prog(ProgramStruct &prog, char *p) {
 	for (i = 0; i<MAX_NUM_STARTTIMES; i++) {
 		prog.starttimes[i] = sh_parse_listdata(&pv) / 60;
 		DEBUG_PRINTLN(prog.starttimes[i]);
+
+		
 	}
 	pv++; // this should be a ','
 	pv++; // this should be a '['
+	byte j = 1;
+
 	for (i = 0; i < MAX_NUM_TASKS; i++) {
 		if (strlen(pv) <= 2)break;
-
 		prog.tasks[i].dur = sh_parse_listdata(&pv);
 		DEBUG_PRINTLN(prog.tasks[i].dur);
-		prog.tasks[i].zbits = 1;
+		prog.tasks[i].zbits = j;
+		j = j << 1;
 	}
 	prog.ntasks = i;
 	pv++; // this should be a ']'
@@ -495,11 +523,11 @@ void on_sta_change_program() {
 
 	ProgramStruct prog;
 	long v; char json[50];
-	String sv;
+	char* sv="                 ";
 	// read /cp according to OpenSprinkler 2.1.7 API
 	DEBUG_PRINTLN(F("/cp")); 
 #ifdef OS217
-	if (get_value_by_key("v", json)) {
+	if (get_value_by_key_P(PSTR("v"), json)) {
 		DEBUG_PRINTLN(json);
 		byte res=OS_Prog( prog, json);
 	}
@@ -509,7 +537,7 @@ void on_sta_change_program() {
 #endif
 	{
 		DEBUG_PRINTLN(F("OS bee"));
-		if (get_value_by_key("config", v)) {
+		if (get_value_by_key_P(PSTR("config"), v)) {
 			// parse config bytes
 			prog.enabled = v & 0x01;
 			prog.daytype = (v >> 1) & 0x01;
@@ -526,12 +554,13 @@ void on_sta_change_program() {
 		}
 
 
-		if (get_value_by_key("sts", sv)) {
+		if (get_value_by_key_P(PSTR("sts"), sv)) {
 			// parse start times
-			uint16_t pos = 0;
+			//uint16_t pos = 0;
 			byte i;
 			for (i = 0; i < MAX_NUM_STARTTIMES; i++) {
-				prog.starttimes[i] = parse_listdata(sv, pos);
+			//	prog.starttimes[i] = parse_listdata(sv, pos);
+				prog.starttimes[i] = sh_parse_listdata(&sv);
 
 			}
 			if (prog.starttimes[0] < 0) {
@@ -543,7 +572,7 @@ void on_sta_change_program() {
 			return;
 		}
 
-		if (get_value_by_key("nt", v)) {
+		if (get_value_by_key_P(PSTR("nt"), v)) {
 			if (!(v > 0 && v < MAX_NUM_TASKS)) {
 				server_send_result(HTML_DATA_OUTOFBOUND, "nt");
 				return;
@@ -554,11 +583,12 @@ void on_sta_change_program() {
 			return;
 		}
 
-		if (get_value_by_key("pt", sv)) {
+		if (get_value_by_key_P(PSTR("pt"), sv)) {
 			byte i = 0;
-			uint16_t pos = 0;
+		//	uint16_t pos = 0;
 			for (i = 0; i < prog.ntasks; i++) {
-				ulong e = parse_listdata(sv, pos);
+		//		ulong e = parse_listdata(sv, pos);
+				ulong e = sh_parse_listdata(&sv);
 				prog.tasks[i].zbits = e & 0xFF;
 				prog.tasks[i].dur = e >> 8;
 			}
@@ -567,11 +597,14 @@ void on_sta_change_program() {
 			return;
 		}
 	}
-	if (!get_value_by_key("name", sv)) {
-		sv = F("Program ");
-		sv += (pid == -1) ? (pd.nprogs + 1) : (pid + 1);
+	if (!get_value_by_key_P(PSTR("name"), sv)) {
+	//	sv = F("Program ");
+	//(	sv += (pid == -1) ? (pd.nprogs + 1) : (pid + 1);
+		strcpy_P(sv, "Program");
+		char n[2]; n[1] = pid + '1'; n[2] = 0;
+		strcat(sv, n);
 	}
-	strncpy(prog.name, sv.c_str(), PROGRAM_NAME_SIZE);
+	strncpy(prog.name, sv, PROGRAM_NAME_SIZE);
 	prog.name[PROGRAM_NAME_SIZE - 1] = 0;
 
 	if (pid == -1) {
@@ -604,9 +637,9 @@ void on_sta_run_program() {
 	switch (pid) {
 	case MANUAL_PROGRAM_INDEX:
 	{
-		if (get_value_by_key("zbits", v)) {
+		if (get_value_by_key_P(PSTR("zbits"), v)) {
 			byte zbits = v;
-			if (get_value_by_key("dur", v)) start_manual_program(zbits, (uint16_t)v);
+			if (get_value_by_key_P(PSTR("dur"), v)) start_manual_program(zbits, (uint16_t)v);
 			else { server_send_result(HTML_DATA_MISSING, "dur"); return; }
 		} else { server_send_result(HTML_DATA_MISSING, "zbits"); return; }
 	}
@@ -614,14 +647,20 @@ void on_sta_run_program() {
 
 	case QUICK_PROGRAM_INDEX:
 	{
-		String sv;
-		if (get_value_by_key("durs", sv)) {
-			uint16_t pos = 0;
+		char bu[30];
+		char* pos = bu;
+		//String sv;
+		//if (get_value_by_key_P(PSTR("durs"), sv)) {
+		if (get_value_by_key_P(PSTR("durs"), pos)) {
+			//uint16_t pos = 0;
 			uint16_t durs[MAX_NUMBER_ZONES];
 			bool valid = false;
-			DEBUG_PRINTLN(sv);
+			//DEBUG_PRINTLN(sv);
+			DEBUG_PRINTLN(pos);
 			for (byte i = 0; i<MAX_NUMBER_ZONES; i++) {
-				durs[i] = (uint16_t)parse_listdata(sv, pos);
+				durs[i] = (uint16_t)sh_parse_listdata(&pos);
+
+				//durs[i] = (uint16_t)parse_listdata(sv, pos);
 
 				if (durs[i]) valid = true;
 			}
@@ -633,9 +672,9 @@ void on_sta_run_program() {
 
 	case TESTZONE_PROGRAM_INDEX:
 	{
-		if (get_value_by_key("zid", v)) {
+		if (get_value_by_key_P(PSTR("zid"), v)) {
 			byte zid = v;
-			if (get_value_by_key("dur", v))  start_testzone_program(zid, (uint16_t)v);
+			if (get_value_by_key_P(PSTR("dur"), v))  start_testzone_program(zid, (uint16_t)v);
 			else { server_send_result(HTML_DATA_MISSING, "dur"); return; }
 		} else { server_send_result(HTML_DATA_MISSING, "zid"); return; }
 	}
@@ -701,7 +740,7 @@ void on_sta_change_options() {
 			return;
 		}
 	}
-
+	
 	// SECOND ROUND: change option values
 	o = osb.options;
 	for (i = 0; i<NUM_OPTIONS; i++, o++) {
@@ -784,7 +823,7 @@ void on_sta_program() {
 		}
 		v |= ((ulong)prog.days[0] << 8);
 		v |= ((ulong)prog.days[1] << 16);
-		append_key_value(html, "config", (ulong)v);
+		append_key_value_P(html,PSTR( "config"), (ulong)v);
 
 		strcat(html ,"\"sts\":[");
 		byte i;
@@ -926,23 +965,32 @@ byte reschedule(time_t timenow) {
 			byte ii = 0; time_t start = now();
 	for (byte i = 0; i < pd.scheduled_ntasks; i++) {
 		timesched[ii].start = start;
-		timesched[ii++].dur = pd.scheduled_stop_times[i] - start;
+		timesched[ii].dur = pd.scheduled_stop_times[i] - start;
+		timesched[ii++].valv = i+1;
+
 		start = pd.scheduled_stop_times[i];
 		DEBUG_PRINT(timesched[ii - 1].start); DEBUG_PRINT(" "); DEBUG_PRINTLN(timesched[ii - 1].dur);
 
 	}
-
+	
 	for (byte day = 0; day < 30; day++) {
 		ulong day_time = (now()/86400UL)*SECS_PER_DAY + day*86400UL + 1;
 		//DEBUG_PRINT(now()); DEBUG_PRINT(" "); DEBUG_PRINT(now() / 86400UL); DEBUG_PRINT(" "); DEBUG_PRINTLN((now() / 86400UL)*SECS_PER_DAY);
 		for (byte i = 0; i < pd.nprogs; i++) {
 			if (pd.nprogs > 1 || day == 0)pd.read(i, &dayprog);
-				if (dayprog.check_day_match(day_time)) {
+				if (dayprog.check_day_match(day_time&&osb.options[OPTION_RAIN_D].ival==0)) {
 				for (byte j = 0; j < MAX_NUM_STARTTIMES; j++) {
 					if (dayprog.starttimes[j] + day_time > start && dayprog.starttimes[j]>0) {
 						timesched[ii].start = dayprog.starttimes[j]*60 + day_time;
-						timesched[ii++].dur = dayprog.tasks[0].dur;
-						if (ii == 10) {
+						timesched[ii].dur = dayprog.tasks[0].dur;
+						timesched[ii++].valv = dayprog.tasks[0].zbits;
+
+						for (byte iii = 1; iii < dayprog.ntasks; iii++) {
+							timesched[ii].start = timesched[ii - 1].start + timesched[ii - 1].dur;
+							timesched[ii].dur = dayprog.tasks[iii].dur;
+							timesched[ii++].valv = dayprog.tasks[iii].zbits;
+						}
+						if (ii == MAX_NUMBER_SCHEDULED) {
 							DEBUG_PRINT(F("NEXT IN min.")); DEBUG_PRINTLN(timesched[0].start - now());
 							next = 0;
 							DEBUG_PRINT(F("busy")); DEBUG_PRINTLN(osb.program_busy);
@@ -966,10 +1014,10 @@ byte reschedule(time_t timenow) {
 #endif
 
 
-static ulong connecting_timeout;
+
 byte onoff = 0;
 static ulong last_time = 0;
-static ulong last_minute = 0;
+//static ulong last_minute = 0;
 
 void setup() {
 
@@ -1018,14 +1066,23 @@ void setup() {
 	osb.program_busy = false;
 
 	DEBUG_PRINTLN(F("END setup"));
-	
+	if (schedN == 0 && time_set)schedN = reschedule(now());
 }
 unsigned long old_millis = 0;
+bool newday = true;
 void loop() {
+	if (now() % SECS_PER_DAY < 50 && newday) {
+		newday = false;
+		if (osb.options[OPTION_RAIN_D].ival > 0) {
+			osb.options[OPTION_RAIN_D].ival--;
+			osb.options_save();
+		}
+	}
+	if (now() % SECS_PER_DAY > 60)newday = true;
 	
 	server.LoRaReceiver(sleepcount);
 	
-	if(schedN==0&&time_set)schedN=reschedule(now());
+
 	if (sleepcount > 200){
 	//------correct time for sleep milliseconds-or read time from RTC if available	
 		//Serial.print(hour()); Serial.print('-');
@@ -1051,28 +1108,37 @@ void loop() {
 		Serial.print(minute()); Serial.print(':'); Serial.println(second());
 #endif
 #ifndef NEW
-		if (schedN > 0)
+		if (schedN > next)
 			if (!osb.program_busy) {
 				if (now() >= timesched[next].start) {
 					/////start---------------------------------
-					DEBUG_PRINTLN(F("START"));
-					server.send("Start");
+				//	String st = "Start ";
+				//	st += timesched[next].valv;
+				//	server.send(st);
+					char sta[7]="Start ";
+					sta[6] = '0' + timesched[next].valv;
+					server.send(sta);
+					DEBUG_PRINTLN(sta);
 					osb.program_busy = true;
-					osb.open(0);
+					osb.open(timesched[next].valv);
 				}
 			} else {
 				// osb.program_busy check end time to close
 				if (now() >= timesched[next].start + timesched[next].dur) {
 					//////stop-----------------------------------
 					osb.program_busy = false;
-					osb.close(0);
+					osb.close(timesched[next].valv);
 					DEBUG_PRINT(F("STOP next in min."));
 					next++;
-					DEBUG_PRINTLN((timesched[next].start - now()) / 60);
-					char resp[30] = "STOP next in min."; char cc[10];
-					strcat(resp, ultoa((timesched[next].start - now()) / 60, cc, 10));
+					ulong nextTime;
+					if (now() >timesched[next].start)nextTime = 0;
+					else nextTime = (timesched[next].start - now()) / 60;
+
+					DEBUG_PRINTLN(nextTime);
+					char resp[30];
+					sprintf_P(resp, "Stop %d next start in %d min", timesched[next-1].valv,nextTime);
 					server.send(resp);
-					if (next > schedN - 2) {
+					if (schedN>=3&&next > schedN - 2) {
 						next = 0;
 						schedN = reschedule(now());
 					}

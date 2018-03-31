@@ -16,11 +16,11 @@
 // Peripheral uart service
 #define NARG 7
 static char argname[NARG][8];
-static char argval[120];
+static char argval[80];
 static char* pointarg[NARG];
 static byte narg;
-#define RH_RF95_INPUT_LEN 120
-char html[RH_RF95_INPUT_LEN];
+
+char html[HTML_LEN];
 #ifdef LORA
 RH_RF95 LoRa;
 #endif
@@ -46,6 +46,7 @@ void BLESERVER::begin() {
 //	LoRa.setModemConfig(LoRa.Bw31_25Cr48Sf512);// Bw31_25Cr48Sf512);
 	LoRa.setThisAddress(device_code);
 	LoRa.setHeaderFrom(device_code);
+	LoRa.setPreambleLength(500);
 	DEBUG_PRINT(F("Device code")); DEBUG_PRINTLN(device_code);
 	delay(1000);
 	LoRa.isChannelActive();
@@ -111,7 +112,7 @@ void BLESERVER::handleClient(char* RXpointer, int iRX) {
 	}
 #ifdef LORA
 #define CAD
-#define DEBUG
+
 #ifndef DEBUG
 #define DEBbegin(x) {}
 #define DEBprint(x) {}
@@ -140,20 +141,22 @@ bool BLESERVER::LoRaReceiver(int &sleepcount) {
 		} else {
 			DEBprint("Message to:"); DEBprintln(LoRa.headerTo());
 			int i = 0;
-			if (LoRa.waitAvailableTimeout(3000)) {
+			if (LoRa.waitAvailableTimeout(5000)) {
 				if (true)//device_code == LoRa.headerTo())
 				{
 					if (controller_code != LoRa.headerFrom())DEBUG_PRINTLN(F("not from my controller"));
 
 					DEBprintln(LoRa.headerTo());
 					// Should be a message for us now   
-					//char buf[RH_RF95_MAX_MESSAGE_LEN];
-					char RXpointer[80];
+		
+		//			char buf[RH_RF95_MAX_MESSAGE_LEN];
+					char RXpointer[100];// RH_RF95_MAX_MESSAGE_LEN];
 					uint8_t len = sizeof(RXpointer);// RH_RF95_MAX_MESSAGE_LEN;a
 					if (LoRa.recv((byte *)RXpointer, &len)) {
 						//	digitalWrite(led, HIGH);
 							//      RH_RF95::printBuffer("request: ", buf, len);
 						DEBprint(F("Text: "));
+						RXpointer[len] = 0;
 						DEBprint((char*)RXpointer);
 						DEBprint(F("RSSI: "));
 						DEBprintln(LoRa.lastRssi());
@@ -201,6 +204,15 @@ char* BLESERVER::arg(const char* name) {
 		}
 	return "";
 }
+char* BLESERVER::arg_P(const PROGMEM char* name) {
+	for (byte i = 0; i < narg; i++)
+		if (strcmp_P(argname[i], name) == 0) {
+			DEBUG_PRINT(i); DEBUG_PRINT(F(" arg=")); DEBUG_PRINTLN(pointarg[i]);
+
+			return pointarg[i];
+		}
+	return "";
+}
 
 char * BLESERVER::arg(int i) {
 	DEBUG_PRINT(i); DEBUG_PRINT(F(" arg=")); DEBUG_PRINTLN(argval[i]);
@@ -233,7 +245,17 @@ bool BLESERVER::hasArg(const char* name) {
 	}
 	return false;
 }
-
+bool BLESERVER::hasArg_P(const PROGMEM char* name) {
+	char str[10];
+	strcpy_P(str, name);
+	for (byte i = 0; i < narg; i++) {
+		DEBUG_PRINT(strlen(str)); DEBUG_PRINT(str); DEBUG_PRINT(strlen(argname[i])); DEBUG_PRINTLN(argname[i]);
+			DEBUG_PRINTLN(strcmp(argname[i], str));
+		if (strcmp(argname[i], str) == 0) return true;
+	}
+	DEBUG_PRINTLN("F");
+	return false;
+}
 //void BLESERVER::send(int code, const String & content_type, const String & content) {
 	//DEBUG_PRINTLN( content);
 	void BLESERVER::send(const String & content) {

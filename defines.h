@@ -26,7 +26,7 @@
 #define PIN_LED3 25
 #define OS217
 #ifndef NRF52 
-
+#define HTML_LEN 180
 #include <avr/eeprom.h>
 #define nvm_read_block  eeprom_read_block
 #define nvm_write_block eeprom_write_block
@@ -46,8 +46,10 @@
 /** GPIO pins */
 #define PIN_BST_PWR PIN_LED3    // Boost converter power
 #define PIN_BST_EN  PIN_LED3    // Boost converter enable
-#define PIN_OPEN     4    // Zone switch 0
-#define PIN_CLOSE    5    // Zone switch 0
+#define PIN_OPEN_1     3    // Zone switch 0
+#define PIN_CLOSE_1    4    // Zone switch 0
+#define PIN_OPEN_2     5    // Zone switch 0
+#define PIN_CLOSE_2    6    // Zone switch 0
 
 // Default device name
 #define DEFAULT_NAME    "My SmartSolenoid"
@@ -56,8 +58,8 @@
 #define ADDR_PROGRAMCOUNTER 400
 #define OSB_SOT_LATCH    0x00
 #define OSB_SOT_NONLATCH 0x01
-
-#define MAX_NUMBER_ZONES         1
+#define MAX_NUMBER_SCHEDULED 10
+#define MAX_NUMBER_ZONES         2
 
 #define MAX_LOG_RECORDS           200
 #define MANUAL_PROGRAM_INDEX      'M' // 77
@@ -73,10 +75,12 @@ typedef enum {
   OPTION_HTP,     // controller address
   OPTION_DKEY,    // device key
   OPTION_NAME,    // device name
+  OPTION_RAIN_D,  // rain delay days
   NUM_OPTIONS     // number of options
 } OSB_OPTION_enum;
 
-
+static byte pinOpen[] = { 0,PIN_OPEN_1,PIN_OPEN_2 };
+static byte pinClose[] = { 0,PIN_CLOSE_1,PIN_CLOSE_2 };
 
 #define TIME_SYNC_TIMEOUT  3600
 
@@ -84,8 +88,9 @@ typedef enum {
 #define SERIAL_DEBUG
 
 #if defined(SERIAL_DEBUG)
+#define DEBUG
+#define DEBUG_BEGIN(x)   { Serial.begin(x); }
 
-  #define DEBUG_BEGIN(x)   { Serial.begin(x); }
   #define DEBUG_PRINT(x)   Serial.print(x)
   #define DEBUG_PRINTLN(x) Serial.println(x)
 

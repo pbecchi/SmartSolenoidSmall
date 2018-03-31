@@ -54,7 +54,9 @@ OptionStruct OSBeeWiFi::options[] = {
   { "sot", 0xFF,      255, "" },
   { "htp", 0,        65535, "" },
   {"dkey", 0, 0, DEFAULT_DKEY},
-  {"name", 0, 0, DEFAULT_NAME}
+  {"name", 0, 0, DEFAULT_NAME},
+  { "raDe",0,         356,"" }
+ 
 };
 
 ulong OSBeeWiFi::curr_loc_time() {
@@ -65,10 +67,12 @@ void OSBeeWiFi::begin() {
 	DEBUG_PRINTLN(F("pin setup"));
  // digitalWrite(PIN_BST_PWR, LOW);
  // pinMode(PIN_BST_PWR, OUTPUT);
-	digitalWrite(PIN_CLOSE, LOW);
-	digitalWrite(PIN_OPEN, LOW);;
-	pinMode(PIN_OPEN, OUTPUT);
-	pinMode(PIN_CLOSE, OUTPUT);
+	for (byte i = 1; i < sizeof(pinOpen); i++) {
+		digitalWrite(pinOpen[i], LOW);
+		digitalWrite(pinClose[i], LOW);;
+		pinMode(pinOpen[i], OUTPUT);
+		pinMode(pinClose[i], OUTPUT);
+	}
  // digitalWrite(PIN_BST_EN, LOW);
   DEBUG_PRINTLN(F("output setup"));
  // setallpins(HIGH);
@@ -438,10 +442,10 @@ void OSBeeWiFi::set_zone(byte zid, byte value) {
 // open a zone by zone index
 void OSBeeWiFi::open(byte zid=0) {
   byte pin = st_pins[zid];
-  digitalWrite(PIN_OPEN, HIGH);
-  delay(200);
-  digitalWrite(PIN_OPEN, LOW);
-
+  digitalWrite(pinOpen[zid], HIGH);
+  delay(500);
+  digitalWrite(pinOpen[zid], LOW);
+  digitalWrite(LEDPIN, HIGH);
   /* {
     // for latching solenoid
     boost();  // boost voltage
@@ -470,9 +474,10 @@ void OSBeeWiFi::open(byte zid=0) {
 // close a zone
 void OSBeeWiFi::close(byte zid=0) {
 	byte pin = st_pins[zid];
-	digitalWrite(PIN_CLOSE, HIGH);
-	delay(200);
-	digitalWrite(PIN_CLOSE, LOW);
+	digitalWrite(pinClose[zid], HIGH);
+	delay(500);
+	digitalWrite(pinClose[zid], LOW);
+	digitalWrite(LEDPIN, LOW);
 /*	if (options[OPTION_SOT].ival == OSB_SOT_LATCH) {
 		// for latching solenoid
 		boost();  // boost voltage

@@ -46,10 +46,13 @@ public:
 	void on( char* uri, THandlerFunction handler);
 
 	char* arg(const char* name);        // get request argument value by name
+	char * arg_P(const PROGMEM char * name);
 	char* arg(int i);              // get request argument value by number
 	char* argName(int i);          // get request argument name by number
 	int args();                     // get arguments count
 	bool hasArg(const char* name);       // check if argument exists
+
+	bool hasArg_P(const PROGMEM char * name);
 
 	
 	void send(const String& content);

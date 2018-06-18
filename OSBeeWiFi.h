@@ -30,7 +30,7 @@ struct OptionStruct {
   char name[6];    // option name
   uint16_t ival;  // integer value
   uint16_t max;   // maximum value
-  String sval;    // string value
+  //String sval;    // string value
 };
 struct OptionChar{
 	char name[6];    // option name
@@ -50,6 +50,8 @@ struct LogStruct {
 class OSBeeWiFi {
 public:
   static OptionStruct options[];
+  static  char* name;
+  static  char* dkey;
   static byte state;
   static byte has_rtc;
   static byte curr_zbits; // current zone bits

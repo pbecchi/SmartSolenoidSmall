@@ -99,7 +99,7 @@ void server_send_html(String html) {
 
 void server_send_result(byte code, const char* item = NULL) {
 	
-	strcpy_P( html,PSTR(  "{\"result\":"));
+	strcat_P( html,PSTR(  "{\"result\":"));
 	char cc[4];
 	strcat(html, itoa(code,cc,10));
 	strcat_P(html,PSTR( ",\"item\":\""));
@@ -263,8 +263,8 @@ bool verify_dkey() {
 	// }
 	//return true;
 	if (server.hasArg("dkey")) {
-		const char* comps = osb.options[OPTION_DKEY].sval.c_str();
-		if (strcmp(server.arg("dkey") , comps)==0)
+		//const char* comps = osb. options[OPTION_DKEY].sval.c_str();
+		if (strcmp(server.arg("dkey") , osb.dkey)==0)
 			return true;
 		server_send_result(HTML_UNAUTHORIZED);
 		return false;
@@ -300,9 +300,9 @@ long sleepTime = 0;
 void on_sta_controller() {
 	// if(curr_mode == OSB_MOD_AP) return;
 	//char html[200]= "{";
-	strcpy(html, "{");
+	strcat(html, "{");
 	append_key_value_P(html, PSTR("fwv"), (int16_t)osb.options[OPTION_FWV].ival);
-//	append_key_value(html, "sot", (int16_t)osb.options[OPTION_SOT].ival);
+	append_key_value(html, "sot", (int16_t)osb.options[OPTION_SOT].ival);
 	append_key_value_P(html, PSTR("utct"), curr_utc_time);
 	append_key_value_P(html,PSTR( "pid"), (int16_t)pd.curr_prog_index);
 	append_key_value_P(html,PSTR( "tid"), (int16_t)pd.curr_task_index);
@@ -755,15 +755,18 @@ void on_sta_change_options() {
 				DEBUG_PRINTLN(ival);
 			}
 		} else {
-			if (get_value_by_key(key, sval)) {
-				o->sval = sval;
+			if (get_value_by_key(key, osb.name)) {
+				//o->sval = sval;
 				DEBUG_PRINTLN(ival);
 			}
 		}
 	}
-
-	if (get_value_by_key(_nkey, nkey)) {
-		osb.options[OPTION_DKEY].sval = nkey;
+	char nnkey[16];
+	if (get_value_by_key(_nkey, nnkey)) {
+		//osb.options[OPTION_DKEY].sval = nkey;
+//		o->dkey = nkey;
+		
+		strcpy(osb.dkey, nnkey);
 	}
 #ifdef NFR52
 
@@ -776,15 +779,21 @@ void on_sta_options() {
 	DEBUG_PRINTLN(F("set options"));
 	//  if(curr_mode == OSB_MOD_AP) return;
 	//char html[200] = "{";
-	strcpy(html, "{");
+	strcat(html, "{");
 	OptionStruct *o = osb.options;
 	for (byte i = 0; i<NUM_OPTIONS; i++, o++) {
 		DEBUG_PRINTLN(o->name);
 		if (!o->max) {
-			if (i == OPTION_NAME ||i==OPTION_DKEY) {  // only output selected string options
-				DEBUG_PRINT(("sv=")); DEBUG_PRINTLN(o->sval);
+			if (i == OPTION_NAME) {  // only output selected string options
+				DEBUG_PRINT(("sv=")); DEBUG_PRINTLN(osb.name);
 
-				append_key_value(html, o->name, o->sval);
+				append_key_value(html, o->name, osb.name);
+			}
+				if ( i == OPTION_DKEY) {  // only output selected string options
+					DEBUG_PRINT(("sv=")); DEBUG_PRINTLN(osb.dkey);
+
+					append_key_value(html, o->name, osb.dkey);
+
 			}
 		} else {  // if this is a int option
 			DEBUG_PRINT(F("iv=")); DEBUG_PRINTLN(o->ival);
@@ -805,7 +814,7 @@ void on_sta_options() {
 
 void append_list_value(char * c, ulong  value, char* separ) { char cc[10]; strcat(c, ultoa(value, cc, 10)); strcat(c, separ); }
 void on_sta_program() {
-	strcpy(html, "{");
+	strcat(html, "{");
 
 	 append_key_value(html, "tmz", (int16_t)osb.options[OPTION_TMZ].ival);
 	strcat(html, "\"progs\":[");

@@ -30,6 +30,10 @@
 #include <Time/TimeLib.h>
 
 //byte OSBeeWiFi::state = OSB_STATE_INITIAL;
+
+char* OSBeeWiFi::name = DEFAULT_NAME;
+char* OSBeeWiFi::dkey = DEFAULT_DKEY;
+
 byte OSBeeWiFi::has_rtc = false;
 byte OSBeeWiFi::curr_zbits = 0;
 byte OSBeeWiFi::next_zbits = 0;
@@ -49,15 +53,16 @@ extern ProgramData pd;
  * String options don't have integer or max value
  */
 OptionStruct OSBeeWiFi::options[] = {
-  {"fwv", OSB_FWV,     255, ""},
-  {"tmz", 62,          104, ""},
-  { "sot", 0xFF,      255, "" },
-  { "htp", 0,        65535, "" },
-  {"dkey", 0, 0, DEFAULT_DKEY},
-  {"name", 0, 0, DEFAULT_NAME},
-  { "raDe",0,         356,"" }
+  {"fwv", OSB_FWV,     255},// "" },
+  {"tmz", 62,          104},// "" },
+  { "sot", 255,      255},// "" },
+  { "htp", 0,        65535},// "" },
+  {"dkey", 0, 0},// DEFAULT_DKEY },
+  { "name", 0, 0 },// DEFAULT_NAME},
+  { "raDe",0,         356}//,"" }
  
 };
+
 
 ulong OSBeeWiFi::curr_loc_time() {
   return curr_utc_time + (ulong)options[OPTION_TMZ].ival*900L - 43200L;
@@ -170,7 +175,8 @@ void OSBeeWiFi::options_save() {
 	DEBUG_PRINT(F("eeprom write"));
 	for (byte i = 0; i < NUM_OPTIONS; i++) {
 		strcpy(MyOptions.name, options[i].name);
-		strcpy(MyOptions.sval, options[i].sval.c_str());
+		if (i == OPTION_NAME)strcpy(MyOptions.sval, name);//options[i].sval.c_str());
+		if (i == OPTION_DKEY)strcpy(MyOptions.sval, dkey);
 		MyOptions.ival = options[i].ival;
 		MyOptions.max = options[i].max;
 		DEBUG_PRINT(options[i].name); DEBUG_PRINT(options[i].ival);
@@ -186,7 +192,10 @@ void OSBeeWiFi::options_load() {
 		eeprom_read_block((void *)&MyOptions, (void *)(OPTIONS_ADDR + sizeof(MyOptions)*i), sizeof(MyOptions));
 	
 		strcpy(options[i].name , MyOptions.name);
-		options[i].sval = MyOptions.sval;
+	//	options[i].sval = MyOptions.sval;
+		if (i == OPTION_NAME)strcpy( OSBeeWiFi::name, MyOptions.sval );
+		if (i == OPTION_DKEY)strcpy(OSBeeWiFi::dkey, MyOptions.sval);
+
 		options[i].ival = MyOptions.ival;
 		options[i].max = MyOptions.max;
 		DEBUG_PRINT(options[i].name); DEBUG_PRINT(options[i].ival); DEBUG_PRINTLN(MyOptions.sval);
@@ -268,7 +277,7 @@ void OSBeeWiFi::options_load() {
 			String name = nome;// file.readStringUntil(':');
 			  DEBUG_PRINT(name); DEBUG_PRINT(":");
 			  //	char sval[10];
-			  String sval = valor;// file.readStringUntil('\n');
+			  String val = valor;// file.readStringUntil('\n');
 			  DEBUG_PRINT(sval); DEBUG_PRINTLN("");
 
 			  sval.trim();

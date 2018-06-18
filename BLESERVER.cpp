@@ -16,7 +16,7 @@
 // Peripheral uart service
 #define NARG 7
 static char argname[NARG][8];
-static char argval[80];
+static char argval[70];
 static char* pointarg[NARG];
 static byte narg;
 
@@ -25,9 +25,149 @@ char html[HTML_LEN];
 RH_RF95 LoRa;
 #endif
 //#define SER 
+#define LORA_MESH
+#ifdef LORA_MESH
+#define N_NODES 5
+#define LIMIT_RSSI 120
+#define nTimes 3
+#define INTERVAL 2000L
+byte asknode = 1;                         //<--------------identifcatore del nodo
+byte LoraTo = 1, LoraFrom = 0;
+
+bool scanmode = false;
+byte mycode;                //
+byte nNodes;                //read from scan command ????only for master in EEprom????
+//long routing[6];
+bool notscanned = true;
+long resetMilli = 300000L,mytime; bool CADmode = true;
+/*
+byte address[5];//this is to be defined by controller so we will use only address[6] if address[0]!=0 
+
+void LoraSend(byte add, char* s) {
+	char buf[150] = "";
+	if (address[0] == 0) {
+		LoRa.setHeaderTo(add);
+		strcpy(buf, s);
+	} else {
+		byte i = 0;
+		LoRa.setHeaderTo(address[0]);
+		do{
+	//	long code = routing[add];
+		
+	//	while (code != 0) {
+			char add[6];
+			sprintf(add, "/%d", address[i]);
+			strcat(buf, add);
+	//		code = code >> 8;
+		} while(address[i++] > 0);
+		strcat(buf, s);
+		Serial.println(buf);
+	}
+	LoRa.setHeaderFrom(mycode);
+	Serial.println("Send..");
+	LoRa.send((byte *)buf, strlen(buf));
+	LoRa.waitPacketSent();
+}
+*/
+
+void LoraSend(char* s) {
+	LoRa.setHeaderFrom(mycode);
+	LoRa.setHeaderTo(LoraTo);
+	LoRa.send((byte *)s, strlen(s));
+	LoRa.waitPacketSent();
+}
+
+void strshorten(char * buf, byte ii, byte len) {
+	byte i;
+	buf[0] = '/';
+	for (i = ii; i < len; i++) {
+		buf[i - ii + 1] = buf[i];
+		Serial.print((char)buf[i]);
+	}
+	buf[i - ii + 1] = 0;
+}
+
+byte readLora(byte * buf, uint8_t len) {
+	if (LoRa.available()) {
+		Serial.print('-');
+		// Should be a reply message for us now   
+		if (LoRa.recv(buf, &len)) {
+			LoraFrom = LoRa.headerFrom();
+			Serial.print(F("received: "));
+			Serial.println((char*)buf);
+			Serial.print(F("RSSI: "));
+			Serial.println(LoRa.lastRssi(), DEC);
+
+			///////////////////    _________________________send to next recipient_______________
+			buf[len] = 0;
+			html[0] = 0;
+			char * cc; byte add[5], i = 0, ii = 0;
+			if (strchr((char *)buf + 1, '/') != NULL) {
+				char buff[40];
+				strcpy(buff, (char *)buf);
+				cc = strtok((char *)buf + 1, "/");
+				while (cc != NULL) {
+					Serial.println(cc);
+					ii = len - strlen(cc);
+					add[i++] = atoi(cc);
+					cc = strtok(NULL, "/");
 
 
+				}
+				Serial.println(add[i - 2]);
+				if (add[i - 2] != mycode) {
 
+
+					for (int j = i - 2; j >= 0; j--) {
+						Serial.println(add[j]);
+
+						if (add[j] == mycode) {
+							LoraTo = add[j + 1];
+							LoraSend((char*)buff);
+							Serial.print(F("retransmitted to")); Serial.println(LoraTo);
+							//	LoraTo = 0;
+							//	LoraSend("retrasmitted");
+							return 0;
+						}
+					}
+				} else {
+					Serial.println(F("received"));
+					///////////////////////////remove addresses from buf////////////////////////////
+					strshorten((char *)buf, ii-1, len);
+					buf[0] = '/';
+					//	strcpy((char *)buf, cc);
+					//	len = strlen(cc);//
+					Serial.println((char *)buf);
+					//--------------------header for replay----------------------------------------------
+					char header[20] = "";
+					char cc[5];
+					for (int j = i - 1; j >= 0; j--) {
+
+						sprintf(cc, "/%d", add[j]);
+						strcat(header, cc);
+						Serial.println(header);
+					}
+					strcat(header, "/");
+					strcpy(html, header);
+				/*	strcat(header, "/0/received ");
+					// _______________________________send ack to sender___________________________
+					sprintf(cc, "from %d", mycode);
+					strcat(header, cc);
+					LoraTo = add[i - 1];
+					Serial.println(LoraTo);
+					Serial.println(header);
+					LoraSend(header);*/
+				}
+			}
+			return len;
+		}
+
+		/* add main program code here */
+	}
+	return 0;
+}
+
+#endif
 BLESERVER::BLESERVER() {
 }
 
@@ -46,16 +186,23 @@ void BLESERVER::begin() {
 //	LoRa.setModemConfig(LoRa.Bw31_25Cr48Sf512);// Bw31_25Cr48Sf512);
 	LoRa.setThisAddress(device_code);
 	LoRa.setHeaderFrom(device_code);
+#ifdef LORA_MESH
+	mycode = device_code;
+	if (CADmode) { LoRa.setPreambleLength(500); delay(500); LoRa.isChannelActive();
+	}
+#else
 	LoRa.setPreambleLength(500);
 	DEBUG_PRINT(F("Device code")); DEBUG_PRINTLN(device_code);
 	delay(1000);
 	LoRa.isChannelActive();
+#endif
 	DEBUG_PRINTLN(F("LoRa init succeeded."));
 #endif
 }
 void BLESERVER::addr(int address) {
 	LoRa.setThisAddress(address);
 	LoRa.setHeaderFrom(address);
+	
 }
 void BLESERVER::handleClient(char* RXpointer, int iRX) {
 
@@ -130,7 +277,159 @@ bool BLESERVER::LoRaReceiver(int &sleepcount) {
 	long	premil = millis() + STEP_TIME;
 	// 
 	while (millis() < premil)
+#define SCAN_MESH
 
+#ifdef LORA_MESH
+	{
+		byte buf[60], len = 60;
+		if (!(LoRa.isChannelActive())) {
+
+			LoRa.sleep();
+			//	Serial.println("LoRa now sleep");
+			//	delay(2000);
+			LowPower.powerDown(SLEEP_120MS, ADC_OFF, BOD_OFF);
+			/* add main program code here */
+			//LoRa.setModeIdle();
+			//delay(5);
+			sleepcount++;
+			premil = premil - SLEEP_MILLI;
+
+		} else {
+
+			Serial.print('_');
+			long millistart = millis();
+			while (!LoRa.available() && millis() < millistart + 3000L);
+
+
+			if (readLora(buf, len)) {
+				char* str;
+#ifdef SCAN_MESH
+
+				char buff[30];
+				strcpy(buff, (char *)buf);
+				str = strtok((char*)buf, ",\0");
+				Serial.println(str);
+
+				if (strcmp(str, "scan") == 0) {
+					if (LoRa.headerTo() == mycode) {
+						str = strtok(NULL, ",\0");
+						if (nNodes == 0)nNodes = atoi(str);
+						Serial.println(nNodes);
+						//syncro = 0;
+
+						if (notscanned&&LoRa.lastRssi() > -115) {
+							scanmode = true; notscanned = false;
+							asknode = LoRa.headerFrom();          ////read scan command
+							if (mycode > asknode)
+								mytime = (mycode - asknode) *nNodes* INTERVAL*nTimes + millis();
+							else
+								mytime = (asknode - mycode) *nNodes* INTERVAL*nTimes + millis() + nNodes*nNodes*nTimes*INTERVAL;
+							Serial.println(mytime);
+
+						}
+						char  mess[36] = ""; ////send RSSI
+						sprintf(mess, "RSSI,%d,%d", -LoRa.lastRssi(), (mytime - millis()) / 1000);
+						LoraTo = LoRa.headerFrom();
+						LoraSend(mess);
+						Serial.print(F("scan request from")); Serial.println(LoRa.headerFrom());
+					}
+				} else
+					if (strcmp(str, "RSSIres") == 0) {
+						{
+							Serial.println(F("resend ")); Serial.println(asknode);
+							LoraTo = asknode;
+							byte c = mycode; mycode = LoraFrom;
+							LoraSend((char*)buff);
+							mycode = c;
+						}
+					} else
+						if (strcmp(str, "/cy") == 0) {
+							CADmode = true;
+							LoRa.setPreambleLength(500);
+							Serial.println(F("In cad mode now"));
+
+						} else
+							if (strcmp(str, "/cn") == 0) {
+								CADmode = false;
+								LoRa.setPreambleLength(8);
+								Serial.println(F("Normal mode now"));
+							} else
+#endif
+							{
+								handleClient(buf, len);
+								buf[0] = 0; str[0] = 0;
+							}
+							//	if (str != NULL) {
+
+							//	Serial.print("Ack"); Serial.println(LoraFrom);
+								//	Serial.println((char *)buf);
+								//	Serial.println(str);
+							//	if (buff[1] != '.') { LoraTo = LoraFrom; LoraSend("r."); }
+							//	buf[0] = 0; str[0] = 0;
+			}
+#ifdef SCAN_MESH
+			if (scanmode&&millis() > mytime) {                   //////start myscan
+				byte RSSI[8];
+				notscanned = false;
+				int result[N_NODES] = { 0 };
+				for (byte node = 0; node < nNodes; node++) {
+					for (byte n = 0; n < nTimes; n++)
+						if (node != mycode) {
+							Serial.print(F("Scanning node ")); Serial.println(node);
+							LoraTo = node;
+							char mess[15] = "scan,", cc[8];
+							strcat(mess, itoa(nNodes, cc, 10));
+							Serial.println(mess);
+							LoraSend(mess);
+							// ---------------wait for node answers------------------------
+							LoraFrom = node;
+							unsigned long start = millis();
+							bool done = false;
+							result[node] += 150;                             // assume the is no replay
+							while ((millis() < start + INTERVAL) && !done)
+								if (readLora(buf, len)) {
+									char* str = "          ";
+									str = strtok((char*)buf, ",\0");
+									if (strcmp(str, "RSSI") == 0) {
+										str = strtok(NULL, ",\0");
+										byte r = atol(str);
+										result[node] += r - 150;                 //insert received RSSI
+
+																				 //	RSSItot[inde(node, mycode)] = atoi(str);
+										Serial.print(result[node]);
+										Serial.print(F("RSSI from")); Serial.println(node);
+										done = true;
+									}
+								}
+						}
+					RSSI[node] = result[node] / nTimes;
+					if (RSSI[node] > LIMIT_RSSI)RSSI[node] = 0;
+				}
+				scanmode = false;
+				LoraTo = asknode;
+				Serial.println(asknode);
+				char  mess[30] = "RSSIres,", nn[10];
+				strcat(mess, itoa(mycode, nn, 10)); strcat(mess, ",");
+				for (byte i = 0; i < nNodes; i++) {
+					strcat(mess, itoa(RSSI[i], nn, 10));
+					strcat(mess, ",");
+				}
+				if (mycode > 0)LoraSend(mess);
+
+			}
+			if (millis() > resetMilli) {
+				resetMilli = millis() + 1800000UL;
+				notscanned = true;
+				nNodes = 0;
+			}
+#endif
+			LoRa.sleep();
+			sleepcount++;
+			LowPower.powerDown(SLEEP_TIME, ADC_OFF, BOD_OFF);
+			premil = premil - SLEEP_MILLI;
+		}
+	}
+#else
 		if (!(LoRa.isChannelActive())) {
 
 			LoRa.sleep();
@@ -148,8 +447,8 @@ bool BLESERVER::LoRaReceiver(int &sleepcount) {
 
 					DEBprintln(LoRa.headerTo());
 					// Should be a message for us now   
-		
-		//			char buf[RH_RF95_MAX_MESSAGE_LEN];
+
+		//			char buf[RH_LoRa_MAX_MESSAGE_LEN];
 					char RXpointer[100];// RH_RF95_MAX_MESSAGE_LEN];
 					uint8_t len = sizeof(RXpointer);// RH_RF95_MAX_MESSAGE_LEN;a
 					if (LoRa.recv((byte *)RXpointer, &len)) {
@@ -164,12 +463,12 @@ bool BLESERVER::LoRaReceiver(int &sleepcount) {
 						//char data[20] = "Received ";
 						//strcat(data, (char *)buf);
 						//LoRa.send((byte *)data, sizeof(data));=[
-
+						html[0] = 0;
 						handleClient(RXpointer, len);
 
 						DEBprintln(F("Sent a reply"));
 
-						
+
 
 					} else DEBprintln(F("recv failed"));
 
@@ -181,6 +480,7 @@ bool BLESERVER::LoRaReceiver(int &sleepcount) {
 			premil = premil - SLEEP_MILLI;
 			//		return true;
 		}
+#endif
 
 
 }
